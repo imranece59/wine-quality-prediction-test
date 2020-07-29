@@ -26,13 +26,14 @@ import org.apache.spark.ml.feature.StringIndexer
 import org.apache.spark.mllib.evaluation.MulticlassMetrics
 import org.apache.spark.ml.classification.{ RandomForestClassifier, LogisticRegression,DecisionTreeClassifier }
 import org.apache.spark.ml.evaluation.{ MulticlassClassificationEvaluator, BinaryClassificationEvaluator }
+import org.apache.spark.sql.SparkSession
 
 object ProcessDataHelper {
-
+  
   def readWineData(sparkSession: SparkSession, filePath: String): DataFrame = {
     val df = DataframeReadWriteUtils.creatingDataframeFromCsv(sparkSession, filePath)
     val renameColList = List("fixed_acidity", "volatile_acidity", "citric_acid", "residual_sugar", "chlorides", "free_sulfur_dioxide", "total_sulfur_dioxide", "density", "pH", "sulphates", "alcohol", "quality")
-    return df.toDF(renameColList: _*).withColumn("quality_category", expr("case when quality < 7 then 'BAD' else 'GOOD' end"))
+    return df.toDF(renameColList: _*).withColumn("quality_category", expr("case when quality < 6 then 'BAD' else 'GOOD' end"))
   }
 
   def predictionDf(lrModel: LinearRegressionModel, df: DataFrame): DataFrame = {
@@ -72,14 +73,14 @@ object ProcessDataHelper {
     var cv: CrossValidator = null
     val randomForestClassifier=new RandomForestClassifier()
       val paramGrid = new ParamGridBuilder()
-        .addGrid(randomForestClassifier.maxBins, Array(21,23, 25))
-        .addGrid(randomForestClassifier.maxDepth, Array(13, 15,17))
+        .addGrid(randomForestClassifier.maxBins, Array(50,100,150))
+        .addGrid(randomForestClassifier.maxDepth, Array(11, 12,13,14,15))
         .addGrid(randomForestClassifier.impurity, Array("entropy", "gini"))
-        .addGrid(randomForestClassifier.numTrees, Array(48,49,50))
+        .addGrid(randomForestClassifier.numTrees, Array(50,100,150,200))
         .addGrid(randomForestClassifier.featureSubsetStrategy, Array("auto"))
         .addGrid(randomForestClassifier.seed, Array(5043L))
         .addGrid(randomForestClassifier.featuresCol, Array("normFeatures"))
-        .addGrid(randomForestClassifier.minInstancesPerNode, Array(2,3,4))
+        .addGrid(randomForestClassifier.minInstancesPerNode, Array(1,2,3,4))
         .build()
       cv = new CrossValidator()
         .setEstimator(pipeline)
@@ -91,8 +92,7 @@ object ProcessDataHelper {
 
   def randomForestClassification(): RandomForestClassifier = {
     new RandomForestClassifier().setFeaturesCol("normFeatures").setLabelCol("label").setImpurity("gini")
-//      .setNumTrees(500).setFeatureSubsetStrategy("auto").setMaxDepth(15).setMaxBins(50).setMinInstancesPerNode(2).setSeed(5043)
-    .setNumTrees(50).setFeatureSubsetStrategy("auto").setMaxDepth(15).setMaxBins(30).setSeed(5043).setMinInstancesPerNode(2)
+    .setNumTrees(500).setFeatureSubsetStrategy("auto").setMaxDepth(15).setMaxBins(23).setMinInstancesPerNode(3).setSeed(5043)
   }
   
   
@@ -112,5 +112,27 @@ object ProcessDataHelper {
       .setInputCol("quality_category")
       .setOutputCol("label")
   }
-
+  
+  def calculateMetrics(sparkSession: SparkSession,df:DataFrame) ={
+      import sparkSession.implicits._
+      val lp = df.select("label", "prediction")
+      val counttotal = df.count()
+      val correct = lp.filter($"label" === $"prediction").count()
+      val wrong = lp.filter(not($"label" === $"prediction")).count()
+      val ratioWrong = wrong.toDouble / counttotal.toDouble
+      val ratioCorrect = correct.toDouble / counttotal.toDouble
+      val truep = lp.filter($"prediction" === 0.0).filter($"label" === $"prediction").count() / counttotal.toDouble
+      val truen = lp.filter($"prediction" === 1.0).filter($"label" === $"prediction").count() / counttotal.toDouble
+      val falsep = lp.filter($"prediction" === 1.0).filter(not($"label" === $"prediction")).count() / counttotal.toDouble
+      val falsen = lp.filter($"prediction" === 0.0).filter(not($"label" === $"prediction")).count() / counttotal.toDouble
+      println("Total Count: " + counttotal)
+      println("Correct: " + correct)
+      println("Wrong: " + wrong)
+      println("Ratio wrong: " + ratioWrong)
+      println("Ratio correct: " + ratioCorrect)
+      println("Ratio true positive: " + truep)
+      println("Ratio false positive: " + falsep)
+      println("Ratio true negative: " + truen)
+      println("Ratio false negative: " + falsen)
+  }
 }
