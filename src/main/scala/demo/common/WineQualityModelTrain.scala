@@ -1,6 +1,6 @@
 package demo.common
 
-import org.apache.log4j.{Level, LogManager, PropertyConfigurator}
+import org.apache.log4j.{ Level, LogManager, PropertyConfigurator }
 import java.util.Properties
 import scala.collection.JavaConversions._
 import org.apache.spark._
@@ -108,14 +108,14 @@ object WineQualityModelTrain {
       .master(s"$master")
       .getOrCreate
     try {
-      
-      LogManager.getRootLogger.setLevel(Level.ERROR)
-    val rootLogger = Logger.getRootLogger()
-    rootLogger.setLevel(Level.ERROR)
 
-    Logger.getLogger("org").setLevel(Level.OFF)
-    Logger.getLogger("akka").setLevel(Level.OFF)
-    
+      LogManager.getRootLogger.setLevel(Level.ERROR)
+      val rootLogger = Logger.getRootLogger()
+      rootLogger.setLevel(Level.ERROR)
+
+      Logger.getLogger("org").setLevel(Level.OFF)
+      Logger.getLogger("akka").setLevel(Level.OFF)
+
       import sparkSession.implicits._
       val sc = sparkSession.sparkContext
       sc.setLogLevel("ERROR")
@@ -123,13 +123,15 @@ object WineQualityModelTrain {
 /***********************************************************************************
        * below should be uncommented when you run  from local.Give S3 credentials as well
        ***********************************************************************************/
-//            sc.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
-//            sc.hadoopConfiguration.set("fs.s3a.access.key", "")
-//            sc.hadoopConfiguration.set("fs.s3a.secret.key", "")
-//            sc.hadoopConfiguration.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.TemporaryAWSCredentialsProvider")
-//            sc.hadoopConfiguration.set("fs.s3a.session.token", "")
-//            sc.hadoopConfiguration.set("fs.s3a.endpoint", "s3.us-east-1.amazonaws.com")
-//            sc.hadoopConfiguration.set("com.amazonaws.services.s3.enableV4", "true")
+//      sc.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+      //            sc.hadoopConfiguration.set("fs.s3a.access.key", "")
+      //            sc.hadoopConfiguration.set("fs.s3a.secret.key", "")
+      //            sc.hadoopConfiguration.set("fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.TemporaryAWSCredentialsProvider")
+      //            sc.hadoopConfiguration.set("fs.s3a.session.token", "")
+//      sc.hadoopConfiguration.set("fs.s3a.endpoint", "s3.us-east-1.amazonaws.com")
+//      sc.hadoopConfiguration.set("fs.s3a.connection.ssl.enabled", "false")
+//      sc.hadoopConfiguration.set("com.amazonaws.services.s3.enableV4", "true")
+      
 
       //
       val evaluator = new BinaryClassificationEvaluator().setLabelCol("label").setRawPredictionCol("prediction")
@@ -188,7 +190,7 @@ object WineQualityModelTrain {
         val rFaccuracy = evaluator.evaluate(rFpredictions.select("prediction", "label"))
         println("Random Forest Model Accuracy For Training Dataset Without Model Tuning -->", rFtrainaccuracy)
         println("Random Forest Model Accuracy For Validation Dataset Without Model Tuning -->", rFaccuracy)
-//        randomForestModelFit.write.overwrite.save(s"$outputPath")
+        //        randomForestModelFit.write.overwrite.save(s"$outputPath")
 
         //      println("random forest model -->",ProcessDataHelper.trainModel(createRandomForestModelPipeline, trainingDf).stages(3).asInstanceOf[RandomForestClassificationModel].toDebugString)
         //      println("feature importance -->",randomForestModelFit.stages(3).asInstanceOf[RandomForestClassificationModel].featureImportances)
@@ -222,6 +224,11 @@ object WineQualityModelTrain {
         println("************************************************************************************************")
         crossVaidatorTrain.write.overwrite.save(s"$outputPath")
       } else if (runType == "prediction") {
+        sc.hadoopConfiguration.set("fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+        sc.hadoopConfiguration.set("fs.s3a.endpoint", "s3.us-east-1.amazonaws.com")
+        sc.hadoopConfiguration.set("fs.s3a.connection.ssl.enabled", "false")
+        sc.hadoopConfiguration.set("com.amazonaws.services.s3.enableV4", "true")
+        sc.hadoopConfiguration.set("fs.s3a.bucket.cs-643-850-assignment-2.aws.credentials.provider", "org.apache.hadoop.fs.s3a.AnonymousAWSCredentialsProvider")
         val loadedModel = PipelineModel.load(s"$outputPath")
         val testDf = ProcessDataHelper.readWineData(sparkSession, testingDataPath)
         val predictionsTuning = loadedModel.transform(testDf)
